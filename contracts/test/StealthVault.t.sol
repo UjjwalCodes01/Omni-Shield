@@ -86,6 +86,9 @@ contract StealthVaultTest is Test {
         vault = new StealthVault(address(stealth));
         token = new MockERC20();
 
+        // Authorize vault as delegated withdrawal caller on StealthPayment
+        stealth.setAuthorizedVault(address(vault));
+
         vm.deal(alice, 100 ether);
         vm.deal(bob, 100 ether);
         vm.deal(relayer, 10 ether);
@@ -430,29 +433,273 @@ contract StealthVaultTest is Test {
     }
 
     // =========================================================================
-    // Relayer Withdrawal Tests (StealthVault)
+    // Relayer Withdrawal Tests (StealthVault) — Real Fund Transfers
     // =========================================================================
 
-    function test_relayerWithdraw_vaultSignatureVerification() public {
-        // Test the relayer withdrawal flow from StealthVault
-        // First, send to stealth directly for setup
-        vm.prank(alice);
-        stealth.sendNativeToStealth{value: 5 ether}(stealthAddr1, EPH_KEY_1, 0xAB, "");
+    event RelayerWithdrawalProcessed(
+        address indexed stealthAddress, address indexed to, address indexed relayer,
+        address token, uint256 amount, uint256 relayerFee
+    );
 
-        // Compute the withdrawal hash as the vault would
-        bytes32 salt = vault.DOMAIN_SEPARATOR_SALT();
+    function test_vaultRelayer_nativeWithdraw_success() public {
+        // 1. Create a stealth address we can sign from
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-key-1"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        // 2. Send funds to stealth address via StealthPayment
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 10 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+        assertEq(stealth.getStealthBalance(stealthSigner, address(0)), 10 ether);
+
+        // 3. Build the withdrawal hash matching vault's DOMAIN_SEPARATOR_SALT
+        uint256 relayerFeeAmount = 0.1 ether; // 1% of 10 ether
+        uint256 deadline = block.timestamp + 1 hours;
+
         bytes32 withdrawalHash = keccak256(abi.encodePacked(
-            salt,
-            stealthAddr1,
+            vault.DOMAIN_SEPARATOR_SALT(),
+            stealthSigner,
             address(0),
             bob,
-            uint256(0.05 ether),
-            uint256(block.timestamp + 1 hours),
+            relayerFeeAmount,
+            deadline,
             block.chainid
         ));
 
-        // The withdrawal hash should be deterministic
-        assertNotEq(withdrawalHash, bytes32(0));
+        // 4. Sign with stealth address private key (EIP-191)
+        bytes32 ethSignedHash = keccak256(abi.encodePacked(
+            "\x19Ethereum Signed Message:\n32", withdrawalHash
+        ));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSignedHash);
+
+        // 5. Record balances before
+        uint256 bobBefore = bob.balance;
+        uint256 relayerBefore = relayer.balance;
+
+        // 6. Relayer submits withdrawal through vault
+        IStealthVault.RelayerWithdrawal memory withdrawal = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner,
+            token: address(0),
+            to: bob,
+            relayerFee: relayerFeeAmount,
+            deadline: deadline
+        });
+
+        vm.prank(relayer);
+        vault.withdrawViaRelayer(withdrawal, v, r, s);
+
+        // 7. Verify actual fund transfers happened
+        assertEq(bob.balance, bobBefore + 10 ether - relayerFeeAmount, "Bob should receive funds minus fee");
+        assertEq(relayer.balance, relayerBefore + relayerFeeAmount, "Relayer should receive fee");
+        assertEq(stealth.getStealthBalance(stealthSigner, address(0)), 0, "Stealth balance should be zero");
+    }
+
+    function test_vaultRelayer_tokenWithdraw_success() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-token-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        // Send tokens to stealth address
+        uint256 amount = 500 ether;
+        vm.startPrank(alice);
+        token.approve(address(stealth), amount);
+        stealth.sendTokenToStealth(address(token), amount, stealthSigner, EPH_KEY_2, 0xCD, "");
+        vm.stopPrank();
+
+        assertEq(stealth.getStealthBalance(stealthSigner, address(token)), amount);
+
+        // Build and sign
+        uint256 fee = 5 ether; // 1% of 500
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 withdrawalHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(token),
+            bob, fee, deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", withdrawalHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSigned);
+
+        uint256 bobTokenBefore = token.balanceOf(bob);
+        uint256 relayerTokenBefore = token.balanceOf(relayer);
+
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(token),
+            to: bob, relayerFee: fee, deadline: deadline
+        });
+
+        vm.prank(relayer);
+        vault.withdrawViaRelayer(wd, v, r, s);
+
+        assertEq(token.balanceOf(bob), bobTokenBefore + amount - fee);
+        assertEq(token.balanceOf(relayer), relayerTokenBefore + fee);
+        assertEq(stealth.getStealthBalance(stealthSigner, address(token)), 0);
+    }
+
+    function test_vaultRelayer_emitsEvent() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-event-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 5 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+
+        uint256 fee = 0.05 ether;
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 wdHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(0),
+            bob, fee, deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", wdHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSigned);
+
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(0),
+            to: bob, relayerFee: fee, deadline: deadline
+        });
+
+        vm.expectEmit(true, true, true, true);
+        emit RelayerWithdrawalProcessed(stealthSigner, bob, relayer, address(0), 5 ether - fee, fee);
+
+        vm.prank(relayer);
+        vault.withdrawViaRelayer(wd, v, r, s);
+    }
+
+    function test_vaultRelayer_revertExpired() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-expired-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 5 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 wdHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(0),
+            bob, uint256(0), deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", wdHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSigned);
+
+        // Warp past deadline
+        vm.warp(deadline + 1);
+
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(0),
+            to: bob, relayerFee: 0, deadline: deadline
+        });
+
+        vm.prank(relayer);
+        vm.expectRevert(IStealthVault.WithdrawalExpired.selector);
+        vault.withdrawViaRelayer(wd, v, r, s);
+    }
+
+    function test_vaultRelayer_revertInvalidSignature() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-bad-sig-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+        uint256 wrongPrivKey = uint256(keccak256("wrong-key"));
+
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 5 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 wdHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(0),
+            bob, uint256(0), deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", wdHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivKey, ethSigned); // wrong key!
+
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(0),
+            to: bob, relayerFee: 0, deadline: deadline
+        });
+
+        vm.prank(relayer);
+        vm.expectRevert(IStealthVault.InvalidSignature.selector);
+        vault.withdrawViaRelayer(wd, v, r, s);
+    }
+
+    function test_vaultRelayer_revertFeeTooHigh() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-fee-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 10 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+
+        // 2% cap => max fee = 0.2 ether. Try 1 ether.
+        uint256 deadline = block.timestamp + 1 hours;
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(0),
+            to: bob, relayerFee: 1 ether, deadline: deadline
+        });
+
+        bytes32 wdHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(0),
+            bob, uint256(1 ether), deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", wdHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSigned);
+
+        vm.prank(relayer);
+        vm.expectRevert(IStealthVault.RelayerFeeTooHigh.selector);
+        vault.withdrawViaRelayer(wd, v, r, s);
+    }
+
+    function test_vaultRelayer_revertReplay() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-replay-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        // Send 10 ether in two batches
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 5 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 wdHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(0),
+            bob, uint256(0), deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", wdHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSigned);
+
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(0),
+            to: bob, relayerFee: 0, deadline: deadline
+        });
+
+        // First withdrawal succeeds
+        vm.prank(relayer);
+        vault.withdrawViaRelayer(wd, v, r, s);
+
+        // Send more funds and try to replay
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 5 ether}(stealthSigner, EPH_KEY_2, 0xCD, "");
+
+        vm.prank(relayer);
+        vm.expectRevert(IStealthVault.NullifierAlreadyUsed.selector);
+        vault.withdrawViaRelayer(wd, v, r, s);
+    }
+
+    function test_vaultRelayer_zeroFee_success() public {
+        uint256 stealthPrivKey = uint256(keccak256("vault-stealth-zerofee-key"));
+        address stealthSigner = vm.addr(stealthPrivKey);
+
+        vm.prank(alice);
+        stealth.sendNativeToStealth{value: 3 ether}(stealthSigner, EPH_KEY_1, 0xAB, "");
+
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes32 wdHash = keccak256(abi.encodePacked(
+            vault.DOMAIN_SEPARATOR_SALT(), stealthSigner, address(0),
+            bob, uint256(0), deadline, block.chainid
+        ));
+        bytes32 ethSigned = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", wdHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(stealthPrivKey, ethSigned);
+
+        uint256 bobBefore = bob.balance;
+
+        IStealthVault.RelayerWithdrawal memory wd = IStealthVault.RelayerWithdrawal({
+            stealthAddress: stealthSigner, token: address(0),
+            to: bob, relayerFee: 0, deadline: deadline
+        });
+
+        vm.prank(relayer);
+        vault.withdrawViaRelayer(wd, v, r, s);
+
+        assertEq(bob.balance, bobBefore + 3 ether, "Bob gets full amount with zero fee");
     }
 
     // =========================================================================

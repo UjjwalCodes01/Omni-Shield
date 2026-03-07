@@ -117,6 +117,9 @@ interface IStealthPayment {
         uint256 relayerFee
     );
 
+    /// @notice Emitted when the authorized vault is set
+    event AuthorizedVaultSet(address indexed vault);
+
     // =========================================================================
     // Functions
     // =========================================================================
@@ -178,6 +181,25 @@ interface IStealthPayment {
 
     /// @notice Get the total number of announcements (for scanning)
     function getAnnouncementCount() external view returns (uint256);
+
+    // =========================================================================
+    // Vault-Delegated Withdrawals
+    // =========================================================================
+
+    /// @notice Withdraw from a stealth address on behalf of the stealth owner
+    /// @dev Only callable by the authorized vault contract after ECDSA verification
+    /// @param stealthAddress The stealth address holding funds
+    /// @param token Token to withdraw (address(0) for native)
+    /// @param to Final destination for the recipient's share
+    /// @param relayerFee Fee deducted from balance and sent to relayerAddr
+    /// @param relayerAddr Address that receives the relayer fee
+    function withdrawOnBehalf(
+        address stealthAddress,
+        address token,
+        address to,
+        uint256 relayerFee,
+        address relayerAddr
+    ) external;
 
     // =========================================================================
     // PVM Crypto Functions

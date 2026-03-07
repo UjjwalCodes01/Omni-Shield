@@ -344,16 +344,16 @@ contract StealthVault is IStealthVault, ReentrancyGuard, Ownable2Step, Pausable 
         // Mark as used (replay protection)
         _usedWithdrawalHashes[withdrawalHash] = true;
 
-        // Note: The actual withdrawal is done by having the StealthPayment
-        // contract transfer to the relayer intermediary. Since StealthPayment
-        // requires msg.sender to be the stealth address, we use a different approach:
-        // We record the relayer withdrawal and emit the event. The relayer then
-        // calls StealthPayment.withdrawFromStealth() from the stealth address
-        // private key directly, or we provide a direct withdrawal path.
-        //
-        // For the production flow, this contract must be called BY the stealth
-        // address (via relayer submitting the signed tx) to route funds to
-        // the final destination minus the relayer fee.
+        // Execute the actual fund transfer via StealthPayment's delegated withdrawal.
+        // The vault has been authorized as the trusted caller, so StealthPayment
+        // will release the funds: recipient gets (balance - relayerFee), relayer gets fee.
+        stealthPayment.withdrawOnBehalf(
+            withdrawal.stealthAddress,
+            withdrawal.token,
+            withdrawal.to,
+            withdrawal.relayerFee,
+            msg.sender // relayer
+        );
 
         emit RelayerWithdrawalProcessed(
             withdrawal.stealthAddress,

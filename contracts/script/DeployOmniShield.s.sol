@@ -95,6 +95,10 @@ contract DeployOmniShield is Script {
         StealthVault stealthVault = new StealthVault(address(stealth));
         console2.log("StealthVault deployed at:    ", address(stealthVault));
 
+        // 7c. Authorize StealthVault as delegated withdrawal caller on StealthPayment
+        stealth.setAuthorizedVault(address(stealthVault));
+        console2.log("StealthVault authorized as delegated vault on StealthPayment");
+
         // 8. Deploy Hub (orchestrator)
         OmniShieldHub hub = new OmniShieldHub(
             address(escrow),

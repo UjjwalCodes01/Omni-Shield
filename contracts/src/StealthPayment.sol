@@ -83,6 +83,9 @@ contract StealthPayment is IStealthPayment, ReentrancyGuard, Ownable2Step, Pausa
     /// @notice Maximum batch size
     uint256 public constant MAX_BATCH_SIZE = 50;
 
+    /// @notice Authorized vault contract that can call withdrawOnBehalf
+    address public authorizedVault;
+
     // =========================================================================
     // Constructor
     // =========================================================================
@@ -442,6 +445,58 @@ contract StealthPayment is IStealthPayment, ReentrancyGuard, Ownable2Step, Pausa
     }
 
     // =========================================================================
+    // External Functions — Vault-Delegated Withdrawals
+    // =========================================================================
+
+    /// @notice Withdraw from a stealth address on behalf of the stealth owner.
+    /// @dev Only callable by the authorized vault contract (StealthVault) after
+    ///      the vault has verified the stealth owner's ECDSA signature.
+    ///      This enables the vault to execute the actual fund transfer that
+    ///      relayer withdrawals require, solving the msg.sender problem.
+    /// @param stealthAddress The stealth address holding funds
+    /// @param token Token to withdraw (address(0) for native)
+    /// @param to Final destination for the recipient's share
+    /// @param relayerFee Fee deducted from balance and sent to relayerAddr
+    /// @param relayerAddr Address that receives the relayer fee
+    function withdrawOnBehalf(
+        address stealthAddress,
+        address token,
+        address to,
+        uint256 relayerFee,
+        address relayerAddr
+    ) external nonReentrant whenNotPaused {
+        require(msg.sender == authorizedVault, "Not authorized vault");
+        require(to != address(0), "Zero destination");
+
+        uint256 balance = _stealthBalances[stealthAddress][token];
+        require(balance > 0, "No balance");
+        require(relayerFee <= balance, "Fee exceeds balance");
+
+        // Zero balance before transfer (CEI pattern)
+        _stealthBalances[stealthAddress][token] = 0;
+
+        uint256 recipientAmount = balance - relayerFee;
+
+        // Execute transfers
+        if (token == NATIVE_TOKEN) {
+            (bool s1,) = to.call{value: recipientAmount}("");
+            require(s1, "Recipient transfer failed");
+            if (relayerFee > 0) {
+                (bool s2,) = relayerAddr.call{value: relayerFee}("");
+                require(s2, "Relayer transfer failed");
+            }
+        } else {
+            IERC20(token).safeTransfer(to, recipientAmount);
+            if (relayerFee > 0) {
+                IERC20(token).safeTransfer(relayerAddr, relayerFee);
+            }
+        }
+
+        emit RelayerWithdrawalProcessed(stealthAddress, to, relayerAddr, token, recipientAmount, relayerFee);
+        emit StealthWithdrawal(stealthAddress, to, token, recipientAmount);
+    }
+
+    // =========================================================================
     // External Functions — Scanning Helpers
     // =========================================================================
 
@@ -487,6 +542,14 @@ contract StealthPayment is IStealthPayment, ReentrancyGuard, Ownable2Step, Pausa
     function setRelayerFeeCap(uint256 newCap) external onlyOwner {
         require(newCap <= MAX_RELAYER_FEE_CAP, "Fee cap too high");
         relayerFeeCap = newCap;
+    }
+
+    /// @notice Set the authorized vault contract for delegated withdrawals
+    /// @param vault Address of the StealthVault contract
+    function setAuthorizedVault(address vault) external onlyOwner {
+        require(vault != address(0), "Zero vault");
+        authorizedVault = vault;
+        emit AuthorizedVaultSet(vault);
     }
 
     /// @notice Pause stealth payments (emergency)
