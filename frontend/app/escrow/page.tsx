@@ -104,24 +104,93 @@ export default function EscrowCenterPage() {
   // Handlers
   const handleCreate = useCallback(async () => {
     if (!wallet.signer || !recipient || !amount) return;
+
+    if (!ethers.isAddress(recipient)) {
+      createTx.fail("Recipient must be a valid address.");
+      return;
+    }
+
+    if (recipient.toLowerCase() === wallet.address.toLowerCase()) {
+      createTx.fail("Recipient cannot be your own address.");
+      return;
+    }
+
+    let amountWei: bigint;
+    try {
+      amountWei = ethers.parseEther(amount);
+    } catch {
+      createTx.fail("Invalid escrow amount.");
+      return;
+    }
+
+    if (amountWei <= BigInt(0)) {
+      createTx.fail("Escrow amount must be greater than zero.");
+      return;
+    }
+
+    const expiresInSec = parseInt(expiresIn || "0");
+    if (!Number.isFinite(expiresInSec) || expiresInSec < 3600) {
+      createTx.fail("Expiry must be at least 3600 seconds (1 hour).");
+      return;
+    }
+    if (expiresInSec > 365 * 24 * 3600) {
+      createTx.fail("Expiry cannot exceed 365 days.");
+      return;
+    }
+
     const escrow = new ethers.Contract(CONTRACT_ADDRESSES.escrow, ESCROW_ABI, wallet.signer);
-    const expiresAt = Math.floor(Date.now() / 1000) + parseInt(expiresIn || "3600");
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSec;
     const hash = conditionHash || ethers.ZeroHash;
     await createTx.execute(() =>
-      escrow.createEscrowNative(recipient, expiresAt, hash, { value: ethers.parseEther(amount) })
+      escrow.createEscrowNative(recipient, expiresAt, hash, { value: amountWei })
     );
-  }, [wallet.signer, recipient, amount, expiresIn, conditionHash, createTx]);
+  }, [wallet.signer, wallet.address, recipient, amount, expiresIn, conditionHash, createTx]);
 
   const handleRelease = useCallback(async () => {
     if (!wallet.signer || !releaseId) return;
     const escrow = new ethers.Contract(CONTRACT_ADDRESSES.escrow, ESCROW_ABI, wallet.signer);
-    await releaseTx.execute(() => escrow.release(parseInt(releaseId), conditionData || "0x"));
-  }, [wallet.signer, releaseId, conditionData, releaseTx]);
+
+    const id = parseInt(releaseId, 10);
+    if (!Number.isFinite(id) || id < 0) {
+      releaseTx.fail("Escrow ID must be a non-negative number.");
+      return;
+    }
+
+    try {
+      const entry = await escrow.getEscrow(id);
+      const state = Number(entry[5]);
+      const depositor = String(entry[0]).toLowerCase();
+      const releaseConditionHash = String(entry[8]);
+
+      if (state !== 0) {
+        releaseTx.fail("Escrow is not active.");
+        return;
+      }
+      if (depositor !== wallet.address.toLowerCase()) {
+        releaseTx.fail("Only the escrow depositor can release.");
+        return;
+      }
+      if (releaseConditionHash !== ethers.ZeroHash && !conditionData) {
+        releaseTx.fail("Condition data is required for this escrow release.");
+        return;
+      }
+    } catch {
+      releaseTx.fail("Unable to load escrow details for this ID.");
+      return;
+    }
+
+    await releaseTx.execute(() => escrow.release(id, conditionData || "0x"));
+  }, [wallet.signer, wallet.address, releaseId, conditionData, releaseTx]);
 
   const handleRefund = useCallback(async () => {
     if (!wallet.signer || !releaseId) return;
     const escrow = new ethers.Contract(CONTRACT_ADDRESSES.escrow, ESCROW_ABI, wallet.signer);
-    await refundTx.execute(() => escrow.refund(parseInt(releaseId)));
+    const id = parseInt(releaseId, 10);
+    if (!Number.isFinite(id) || id < 0) {
+      refundTx.fail("Escrow ID must be a non-negative number.");
+      return;
+    }
+    await refundTx.execute(() => escrow.refund(id));
   }, [wallet.signer, releaseId, refundTx]);
 
   // Filter

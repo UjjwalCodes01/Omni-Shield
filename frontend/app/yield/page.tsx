@@ -57,6 +57,7 @@ export default function YieldHubPage() {
   const [routes, setRoutes] = useState<UserRoute[]>([]);
   const [tvl, setTvl] = useState("0");
   const [yieldReserve, setYieldReserve] = useState("0");
+  const [minDeposit, setMinDeposit] = useState<bigint>(BigInt(0));
   const [depositAmount, setDepositAmount] = useState("");
   const [selectedSource, setSelectedSource] = useState<number | null>(null);
   const depositTx = useTx();
@@ -68,13 +69,15 @@ export default function YieldHubPage() {
       try {
         const provider = new ethers.JsonRpcProvider(POLKADOT_HUB_TESTNET.rpcUrl);
         const c = getContracts(provider);
-        const [count, locked, reserve] = await Promise.all([
+        const [count, locked, reserve, min] = await Promise.all([
           c.yieldRouter.getYieldSourceCount().catch(() => BigInt(0)),
           c.yieldRouter.totalValueLocked().catch(() => BigInt(0)),
           c.yieldRouter.yieldReserve().catch(() => BigInt(0)),
+          c.yieldRouter.minDeposit().catch(() => BigInt(0)),
         ]);
         setTvl(ethers.formatEther(locked));
         setYieldReserve(ethers.formatEther(reserve));
+        setMinDeposit(min);
 
         const srcArr: YieldSource[] = [];
         for (let i = 0; i < Number(count); i++) {
@@ -117,14 +120,54 @@ export default function YieldHubPage() {
   // Handlers
   const handleDeposit = useCallback(async () => {
     if (!wallet.signer || !depositAmount) return;
+
+    let amountWei: bigint;
+    try {
+      amountWei = ethers.parseEther(depositAmount);
+    } catch {
+      depositTx.fail("Invalid deposit amount.");
+      return;
+    }
+
+    if (amountWei <= 0) {
+      depositTx.fail("Deposit amount must be greater than zero.");
+      return;
+    }
+
+    if (amountWei < minDeposit) {
+      depositTx.fail(`Minimum deposit is ${ethers.formatEther(minDeposit)} WND.`);
+      return;
+    }
+
+    const activeSources = sources.filter((s) => s.isActive);
+    if (activeSources.length === 0) {
+      depositTx.fail("No active yield source is currently available.");
+      return;
+    }
+
+    if (selectedSource !== null) {
+      const source = sources.find((s) => s.id === selectedSource);
+      if (!source) {
+        depositTx.fail("Selected yield source does not exist.");
+        return;
+      }
+      if (!source.isActive) {
+        depositTx.fail("Selected yield source is not active.");
+        return;
+      }
+      if (source.totalDeposited + amountWei > source.maxCapacity) {
+        depositTx.fail("Selected yield source is at capacity.");
+        return;
+      }
+    }
+
     const yr = new ethers.Contract(CONTRACT_ADDRESSES.yieldRouter, YIELD_ROUTER_ABI, wallet.signer);
-    const amountWei = ethers.parseEther(depositAmount);
     if (selectedSource !== null) {
       await depositTx.execute(() => yr.depositToSource(selectedSource, { value: amountWei }));
     } else {
       await depositTx.execute(() => yr.depositAndRoute({ value: amountWei }));
     }
-  }, [wallet.signer, depositAmount, selectedSource, depositTx]);
+  }, [wallet.signer, depositAmount, selectedSource, depositTx, minDeposit, sources]);
 
   const handleWithdraw = useCallback(async (routeId: number) => {
     if (!wallet.signer) return;
@@ -221,6 +264,7 @@ export default function YieldHubPage() {
             ]} />
             <div className="mt-4 space-y-3">
               <Input label="Amount (WND)" value={depositAmount} onChange={setDepositAmount} placeholder="0.01" type="number" />
+              <p className="text-xs text-zinc-500">Minimum deposit: {ethers.formatEther(minDeposit)} WND</p>
               <div>
                 <span className="mb-1 block text-sm text-zinc-400">Yield Source</span>
                 <div className="space-y-2">

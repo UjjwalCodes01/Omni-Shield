@@ -61,7 +61,7 @@ class YieldOracle {
    */
   async _updateYields() {
     // Get source count from contract
-    const sourceCount = await this.yieldRouter.sourceCount();
+    const sourceCount = await this.yieldRouter.getYieldSourceCount();
 
     for (let i = 0n; i < sourceCount; i++) {
       try {
@@ -83,7 +83,7 @@ class YieldOracle {
           `Updating ${yieldData.name} APY: ${currentApy} → ${newApy} bps`
         );
 
-        const tx = await this.yieldRouter.updateYieldRate(i, newApy, true, {
+        const tx = await this.yieldRouter.updateYieldRate(i, newApy, {
           gasLimit: 300_000n,
         });
         await tx.wait(1);

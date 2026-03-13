@@ -28,6 +28,46 @@ export interface TxStatus {
   success: boolean;
 }
 
+const CUSTOM_ERROR_MESSAGES: Record<string, string> = {
+  "0x9c8d2cd2": "Invalid recipient address.",
+  "0x692bfa7f": "Escrow is not active.",
+  "0xce8c1048": "Only the escrow depositor can perform this action.",
+  "0xeafacd94": "Invalid release condition data.",
+  "0x5b3d0edd": "Escrow has not expired yet.",
+  "0x96ec8e54": "Deposit is below the contract minimum.",
+  "0x30a79c2f": "No active yield source is available.",
+  "0xb1eba972": "Selected yield source is not active.",
+  "0x1e074cd7": "Selected yield source is at capacity.",
+  "0x2c295855": "Invalid yield source ID.",
+  "0x149fb2de": "Only the route owner can perform this action.",
+  "0x37164df9": "Yield route is not active.",
+};
+
+function decodeTxError(err: unknown): string {
+  if (!(err instanceof Error)) return "Transaction failed";
+
+  const anyErr = err as Error & {
+    data?: string;
+    info?: { error?: { data?: string } };
+  };
+
+  const message = err.message || "Transaction failed";
+  const candidateData =
+    (typeof anyErr.data === "string" && anyErr.data) ||
+    (typeof anyErr.info?.error?.data === "string" && anyErr.info.error.data) ||
+    "";
+
+  const selectorFromData = candidateData.startsWith("0x") ? candidateData.slice(0, 10) : "";
+  const selectorFromMsg = (message.match(/0x[a-fA-F0-9]{8}/) ?? [])[0]?.toLowerCase() ?? "";
+  const selector = (selectorFromData || selectorFromMsg || "").toLowerCase();
+
+  if (selector && CUSTOM_ERROR_MESSAGES[selector]) {
+    return CUSTOM_ERROR_MESSAGES[selector];
+  }
+
+  return message;
+}
+
 // ============================================================================
 // Wallet Hook
 // ============================================================================
@@ -170,6 +210,10 @@ export function useTx() {
     setStatus({ pending: false, hash: "", error: "", success: false });
   }, []);
 
+  const fail = useCallback((error: string) => {
+    setStatus({ pending: false, hash: "", error, success: false });
+  }, []);
+
   const execute = useCallback(
     async (txFn: () => Promise<ethers.TransactionResponse>) => {
       setStatus({ pending: true, hash: "", error: "", success: false });
@@ -180,8 +224,7 @@ export function useTx() {
         setStatus({ pending: false, hash: tx.hash, error: "", success: true });
         return tx.hash;
       } catch (err: unknown) {
-        const msg =
-          err instanceof Error ? err.message : "Transaction failed";
+        const msg = decodeTxError(err);
         setStatus({ pending: false, hash: "", error: msg, success: false });
         return null;
       }
@@ -189,7 +232,7 @@ export function useTx() {
     []
   );
 
-  return { status, execute, reset };
+  return { status, execute, reset, fail };
 }
 
 // ============================================================================
