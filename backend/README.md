@@ -44,7 +44,14 @@ npm start
 
 ## Deploy On Render
 
-Use a Background Worker (recommended for this relayer) with these settings:
+Use a Web Service if you want a live URL/status page. This relayer now exposes:
+
+- `GET /`
+- `GET /health`
+
+with JSON status when `PORT` is provided by the platform.
+
+Recommended Render settings:
 
 - Root Directory: `backend`
 - Build Command: `npm install`

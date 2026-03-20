@@ -48,6 +48,7 @@ const { DispatchMonitor } = require("./dispatchMonitor");
 const { YieldOracle } = require("./yieldOracle");
 const { HealthMonitor } = require("./healthMonitor");
 const fs = require("fs");
+const http = require("http");
 
 // Ensure logs directory exists
 if (!fs.existsSync("logs")) {
@@ -92,12 +93,46 @@ async function main() {
   const yieldOracle = new YieldOracle(yieldRouter, provider);
   const healthMonitor = new HealthMonitor(xcmRouter, yieldRouter, provider, signer);
 
+  // Optional HTTP server for platforms (e.g., Render Web Service) that require an open port.
+  let statusServer = null;
+  if (process.env.PORT) {
+    statusServer = http.createServer((req, res) => {
+      const now = new Date().toISOString();
+
+      if (req.url === "/" || req.url === "/health") {
+        const body = JSON.stringify({
+          service: "omni-shield-relayer",
+          status: "ok",
+          time: now,
+          chainId: config.chainId,
+          xcmRouter: config.xcmRouterAddress,
+          yieldRouter: config.yieldRouterAddress,
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(body);
+        return;
+      }
+
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Not found" }));
+    });
+
+    await new Promise((resolve) => {
+      statusServer.listen(Number(process.env.PORT), "0.0.0.0", resolve);
+    });
+
+    logger.info(`HTTP status server listening on port ${process.env.PORT}`);
+  }
+
   // Graceful shutdown
   const shutdown = () => {
     logger.info("Shutdown signal received...");
     dispatchMonitor.stop();
     yieldOracle.stop();
     healthMonitor.stop();
+    if (statusServer) {
+      statusServer.close();
+    }
     setTimeout(() => process.exit(0), 2000);
   };
 
