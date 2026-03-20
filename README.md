@@ -11,6 +11,29 @@
 
 ---
 
+## ✅ Submission Deliverables Checklist
+
+This section maps directly to the judging requirements.
+
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| Polkadot on-chain identity | ⚠️ Team action required | Add your verified identity profile link from Polka-Assembly/OpenGov |
+| Quality documentation | ✅ Included | This README contains project scope, architecture, setup, deployment, and roadmap |
+| UI/UX experience | ✅ Included | Live dashboard with multi-page flows (`/`, `/pvm`, `/stealth`, `/yield`, `/xcm`, `/escrow`) |
+| Demonstration (hosted or local) | ✅ Included | Hosted frontend + hosted backend + local install guide below |
+| Vision and commitment | ✅ Included | Future roadmap section with activation plan as precompiles roll out |
+| Track relevance | ✅ Included | Track 2-focused implementation: Blake2b + BN128 + precompile-ready architecture |
+
+### Polkadot Identity (Required for Final Evaluation)
+
+Add your team identity details here before final submission:
+
+- Team wallet address (Polkadot Hub testnet): `0xc108F92E717891a8C9f2Ab71c67cbF96a3207d7b`
+- On-chain identity proof link: `<ADD_POLKA_ASSEMBLY_OR_OPENGOV_LINK>`
+- Identity setup guide followed: https://openguild.wtf/blog/polkadot/polkadot-opengov-introduction
+
+---
+
 ## 🎯 Track 2: PVM Smart Contracts
 
 | Requirement | Status | Implementation |
@@ -55,6 +78,10 @@ npm run dev
 - `/pvm` — **PVM Registry & Live Demos** (main feature)
 - `/stealth` — Private payment flows
 - `/scanner` — Event monitoring
+
+Hosted frontend: https://omni-shield-zeta.vercel.app/
+
+Hosted backend health endpoint: https://omni-shield.onrender.com/health
 
 ### Run Tests
 
@@ -185,15 +212,17 @@ contracts/src/
 
 ---
 
-## 🎥 Demo Guide
+## 🎥 Demo Script (Quick)
 
-**See [DEMO_GUIDE.md](./DEMO_GUIDE.md)** for complete presentation script.
-
-**Quick Demo Path**:
+**Quick demo path for judges**:
 1. Homepage (`/`) — Track 2 banner and overview
 2. **PVM Registry** (`/pvm`) — Live Blake2b hashing + Pedersen commitment demo
 3. Stealth Payments (`/stealth`) — Private payment flow
 4. Code walkthrough — Show precompile integration
+
+### Demo Assets
+
+- Demo video URL: `<ADD_DEMO_VIDEO_LINK>`
 
 ---
 
@@ -206,11 +235,17 @@ contracts/src/
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation Scope
 
-- **[DEMO_GUIDE.md](./DEMO_GUIDE.md)** — Hackathon presentation script
-- **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)** — Phase-by-phase development
-- **[IMPROVEMENT_ROADMAP.md](./IMPROVEMENT_ROADMAP.md)** — Post-hackathon roadmap
+This README is the canonical submission document and includes:
+
+- Problem statement and track mapping
+- Live deployment details
+- Contract architecture and precompile integration
+- Test coverage summary
+- Judge demo path
+- Local installation and verification steps
+- Future roadmap and commitment
 
 ## Local Setup Guide
 
