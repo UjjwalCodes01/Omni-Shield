@@ -97,6 +97,18 @@ async function main() {
   let statusServer = null;
   if (process.env.PORT) {
     statusServer = http.createServer((req, res) => {
+      const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      };
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, corsHeaders);
+        res.end();
+        return;
+      }
+
       const now = new Date().toISOString();
 
       if (req.url === "/" || req.url === "/health") {
@@ -108,12 +120,12 @@ async function main() {
           xcmRouter: config.xcmRouterAddress,
           yieldRouter: config.yieldRouterAddress,
         });
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
         res.end(body);
         return;
       }
 
-      res.writeHead(404, { "Content-Type": "application/json" });
+      res.writeHead(404, { "Content-Type": "application/json", ...corsHeaders });
       res.end(JSON.stringify({ error: "Not found" }));
     });
 

@@ -17,6 +17,7 @@ import {
   CONTRACT_ADDRESSES, getContracts, PARACHAINS,
 } from "./lib/contracts";
 import { POLKADOT_HUB_TESTNET, STEALTH_PAYMENT_ABI, STEALTH_VAULT_ABI } from "./lib/stealth";
+import { BACKEND_BASE_URL, fetchBackendHealth } from "./lib/backend";
 
 // ============================================================================
 // Chart data for demo (represents TVL over last 7 days)
@@ -40,10 +41,35 @@ const quickActions = [
 
 export default function OverviewPage() {
   const { wallet } = useWalletContext();
+  const [backendState, setBackendState] = useState<"checking" | "online" | "offline">("checking");
+  const [backendMessage, setBackendMessage] = useState("Checking relayer connectivity...");
   const [stats, setStats] = useState({
     announcements: "—", vaultDeposits: "—", escrowCount: "—",
     yieldSources: "—", xcmDispatches: "—", pendingXcm: "—", amountInTransit: "—",
   });
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const health = await fetchBackendHealth(controller.signal);
+        if (health.status === "ok") {
+          setBackendState("online");
+          setBackendMessage(`Connected to ${health.service} on chain ${health.chainId}`);
+          return;
+        }
+
+        setBackendState("offline");
+        setBackendMessage("Backend returned a non-ok health status");
+      } catch (e) {
+        setBackendState("offline");
+        setBackendMessage(e instanceof Error ? e.message : "Health check failed");
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -162,9 +188,25 @@ export default function OverviewPage() {
               <div className="rounded-lg border border-zinc-800 bg-zinc-800/30 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-zinc-400">Backend Relayer</span>
-                  <div className="flex items-center gap-1.5"><PulseDot color="emerald" /><span className="text-xs text-emerald-400">Online</span></div>
+                  {backendState === "online" && (
+                    <div className="flex items-center gap-1.5"><PulseDot color="emerald" /><span className="text-xs text-emerald-400">Online</span></div>
+                  )}
+                  {backendState === "checking" && (
+                    <div className="flex items-center gap-1.5"><PulseDot color="amber" /><span className="text-xs text-amber-400">Checking</span></div>
+                  )}
+                  {backendState === "offline" && (
+                    <div className="flex items-center gap-1.5"><PulseDot color="red" /><span className="text-xs text-red-400">Offline</span></div>
+                  )}
                 </div>
-                <p className="mt-1 text-[10px] text-zinc-600">Monitoring stealth events & XCM dispatches</p>
+                <p className="mt-1 text-[10px] text-zinc-600">{backendMessage}</p>
+                <a
+                  href={`${BACKEND_BASE_URL}/health`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block text-[10px] text-indigo-400 hover:underline"
+                >
+                  Open backend health endpoint
+                </a>
               </div>
               {Object.entries(PARACHAINS).map(([id, para]) => (
                 <div key={id} className="rounded-lg border border-zinc-800 bg-zinc-800/30 p-3">
