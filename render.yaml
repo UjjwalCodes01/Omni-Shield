@@ -1,0 +1,36 @@
+services:
+  - type: worker
+    name: omni-shield-relayer
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    plan: free
+    envVars:
+      - key: RPC_URL
+        value: https://eth-rpc-testnet.polkadot.io/
+      - key: CHAIN_ID
+        value: "420420417"
+      - key: POLL_INTERVAL_MS
+        value: "6000"
+      - key: MAX_TX_RETRIES
+        value: "3"
+      - key: GAS_PRICE_MULTIPLIER
+        value: "1.2"
+      - key: CONFIRMATION_BLOCKS
+        value: "2"
+      - key: LOG_LEVEL
+        value: info
+      - key: RELAYER_PRIVATE_KEY
+        sync: false
+      - key: XCM_ROUTER_ADDRESS
+        sync: false
+      - key: YIELD_ROUTER_ADDRESS
+        sync: false
+      - key: ESCROW_ADDRESS
+        sync: false
+      - key: STEALTH_PAYMENT_ADDRESS
+        sync: false
+      - key: HUB_ADDRESS
+        sync: false

@@ -42,6 +42,37 @@ or
 npm start
 ```
 
+## Deploy On Render
+
+Use a Background Worker (recommended for this relayer) with these settings:
+
+- Root Directory: `backend`
+- Build Command: `npm install`
+- Start Command: `npm start`
+
+Do not use `npm build` (invalid npm command). If you prefer a build step, use `npm run build` only when a `build` script exists.
+
+Required Render environment variables:
+
+- `RELAYER_PRIVATE_KEY` (real 0x-prefixed 32-byte private key, not placeholder text)
+- `XCM_ROUTER_ADDRESS`
+- `YIELD_ROUTER_ADDRESS`
+- `ESCROW_ADDRESS`
+- `STEALTH_PAYMENT_ADDRESS`
+- `HUB_ADDRESS`
+
+Optional (defaults exist):
+
+- `RPC_URL`
+- `CHAIN_ID`
+- `POLL_INTERVAL_MS`
+- `MAX_TX_RETRIES`
+- `GAS_PRICE_MULTIPLIER`
+- `CONFIRMATION_BLOCKS`
+- `LOG_LEVEL`
+
+This repository also includes a Render Blueprint at `render.yaml` to avoid manual misconfiguration.
+
 ## Runtime Modules
 
 - src/index.js: service bootstrap and shutdown hooks

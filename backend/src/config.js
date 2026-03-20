@@ -5,6 +5,24 @@
 
 require("dotenv").config();
 
+function isValidHexPrivateKey(value) {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
+function looksLikePlaceholder(value) {
+  const normalized = String(value).toUpperCase();
+  return (
+    normalized.includes("REPLACE") ||
+    normalized.includes("YOUR") ||
+    normalized.includes("PRIVATE_KEY") ||
+    normalized.includes("HERE")
+  );
+}
+
+function isValidEvmAddress(value) {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
 const config = {
   // EVM / Polkadot Hub
   rpcUrl: process.env.RPC_URL || "https://eth-rpc-testnet.polkadot.io/",
@@ -35,12 +53,24 @@ function validateConfig() {
 
   if (!config.relayerPrivateKey) {
     errors.push("RELAYER_PRIVATE_KEY is required");
+  } else if (looksLikePlaceholder(config.relayerPrivateKey)) {
+    errors.push(
+      "RELAYER_PRIVATE_KEY is a placeholder. Set a real 0x-prefixed 32-byte hex private key"
+    );
+  } else if (!isValidHexPrivateKey(config.relayerPrivateKey)) {
+    errors.push(
+      "RELAYER_PRIVATE_KEY must be a valid 0x-prefixed 64-hex-character key"
+    );
   }
   if (!config.xcmRouterAddress) {
     errors.push("XCM_ROUTER_ADDRESS is required");
+  } else if (!isValidEvmAddress(config.xcmRouterAddress)) {
+    errors.push("XCM_ROUTER_ADDRESS must be a valid 20-byte EVM address");
   }
   if (!config.yieldRouterAddress) {
     errors.push("YIELD_ROUTER_ADDRESS is required");
+  } else if (!isValidEvmAddress(config.yieldRouterAddress)) {
+    errors.push("YIELD_ROUTER_ADDRESS must be a valid 20-byte EVM address");
   }
 
   return { valid: errors.length === 0, errors };
