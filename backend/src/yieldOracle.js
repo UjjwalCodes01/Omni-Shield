@@ -83,9 +83,7 @@ class YieldOracle {
           `Updating ${yieldData.name} APY: ${currentApy} → ${newApy} bps`
         );
 
-        const tx = await this.yieldRouter.updateYieldRate(i, newApy, {
-          gasLimit: 300_000n,
-        });
+        const tx = await this._sendUpdateWithRetry(i, newApy);
         await tx.wait(1);
 
         logger.info(`${yieldData.name} APY updated to ${newApy} bps`);
@@ -104,6 +102,80 @@ class YieldOracle {
     const delta = Math.floor(Math.random() * yieldData.variance * 2) - yieldData.variance;
     const newApy = yieldData.baseApy + delta;
     return Math.max(50, Math.min(5000, newApy)); // Clamp to 0.5%–50%
+  }
+
+  /**
+   * Send APY update with retry logic for mempool replacement/priority conflicts.
+   * @param {bigint} sourceIndex
+   * @param {number} newApy
+   */
+  async _sendUpdateWithRetry(sourceIndex, newApy) {
+    for (let attempt = 1; attempt <= config.maxTxRetries; attempt++) {
+      try {
+        const overrides = await this._buildTxOverrides(attempt);
+        return await this.yieldRouter.updateYieldRate(sourceIndex, newApy, overrides);
+      } catch (err) {
+        const message = String(err && err.message ? err.message : err);
+        const retryable = this._isRetryableTxError(message);
+        if (!retryable || attempt === config.maxTxRetries) {
+          throw err;
+        }
+
+        logger.warn(
+          `Retrying APY update for source ${sourceIndex} after tx pricing/nonce conflict (attempt ${attempt}/${config.maxTxRetries})`
+        );
+        await this._sleep(1200 * attempt);
+      }
+    }
+
+    throw new Error("APY update retries exhausted");
+  }
+
+  /**
+   * Build transaction overrides with pending nonce and progressively bumped fees.
+   * @param {number} attempt
+   */
+  async _buildTxOverrides(attempt) {
+    const signer = this.yieldRouter.runner;
+    const nonce = await signer.getNonce("pending");
+    const feeData = await this.provider.getFeeData();
+
+    const basePriority = feeData.maxPriorityFeePerGas || feeData.gasPrice || 1_000_000_000n;
+    const baseMaxFee = feeData.maxFeePerGas || (basePriority * 2n);
+
+    const baseMultiplier = Number.isFinite(config.gasPriceMultiplier)
+      ? config.gasPriceMultiplier
+      : 1.2;
+    const bumpFactor = baseMultiplier + (attempt - 1) * 0.15;
+
+    return {
+      gasLimit: 300_000n,
+      nonce,
+      maxPriorityFeePerGas: this._applyMultiplier(basePriority, bumpFactor),
+      maxFeePerGas: this._applyMultiplier(baseMaxFee, bumpFactor),
+    };
+  }
+
+  /**
+   * @param {bigint} value
+   * @param {number} factor
+   */
+  _applyMultiplier(value, factor) {
+    const bps = Math.max(100, Math.floor(factor * 100));
+    return (value * BigInt(bps)) / 100n;
+  }
+
+  /**
+   * @param {string} message
+   */
+  _isRetryableTxError(message) {
+    const m = message.toLowerCase();
+    return (
+      m.includes("priority is too low") ||
+      m.includes("replacement transaction underpriced") ||
+      m.includes("nonce too low") ||
+      m.includes("already known")
+    );
   }
 
   /**
