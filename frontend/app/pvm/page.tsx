@@ -48,22 +48,40 @@ export default function PvmRegistryPage() {
 
   useEffect(() => {
     (async () => {
+      const next = {
+        sr25519: false,
+        ed25519: false,
+        blake2f: false,
+        bn128: false,
+        xcm: false,
+      };
+
       try {
         const provider = new ethers.JsonRpcProvider(POLKADOT_HUB_TESTNET.rpcUrl);
         const c = getContracts(provider);
-        const status = await c.cryptoRegistry.getPrecompileStatus();
 
-        // Check XCM dispatch availability
-        const xcmAvailable = await c.cryptoRegistry.isXcmDispatchAvailable();
+        try {
+          const status = await c.cryptoRegistry.getPrecompileStatus();
+          next.sr25519 = Boolean(status[0]);
+          next.ed25519 = Boolean(status[1]);
+          next.blake2f = Boolean(status[2]);
+          next.bn128 = Boolean(status[3]);
+        } catch (e) {
+          console.error("PVM precompile status fetch failed:", e);
+        }
 
-        setPrecompiles({
-          sr25519: status[0],
-          ed25519: status[1],
-          blake2f: status[2],
-          bn128: status[3],
-          xcm: xcmAvailable
-        });
-      } catch (e) { console.error("PVM fetch:", e); }
+        // Older CryptoRegistry deployments may not expose this method.
+        try {
+          const xcmAvailable = await c.cryptoRegistry.isXcmDispatchAvailable();
+          next.xcm = Boolean(xcmAvailable);
+        } catch (e) {
+          console.warn("XCM availability check unavailable on deployed contract:", e);
+        }
+
+        setPrecompiles(next);
+      } catch (e) {
+        console.error("PVM provider setup failed:", e);
+      }
       setLoading(false);
     })();
   }, []);
