@@ -7,6 +7,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {ICryptoRegistry} from "./interfaces/ICryptoRegistry.sol";
 import {PvmVerifier} from "./libraries/PvmVerifier.sol";
 import {PvmBlake2} from "./libraries/PvmBlake2.sol";
+import {PolkadotPrecompileAddresses, PrecompileFeatureStatus, PolkadotFeatures} from "./interfaces/IPolkadotPrecompiles.sol";
 
 /// @title CryptoRegistry
 /// @author Omni-Shield Team
@@ -69,6 +70,10 @@ contract CryptoRegistry is ICryptoRegistry, Ownable2Step, Pausable, ReentrancyGu
     bool public override ed25519Available;
     bool public override blake2fAvailable;
     bool public override bn128Available;
+
+    /// @notice XCM dispatch precompile availability (TRACK 2)
+    /// @dev When true, native XCM message dispatch is available from EVM
+    bool public xcmDispatchAvailable;
 
     /// @notice Nonce tracking for substrate auth replay protection
     /// @dev Maps keccak256(pubkey) => next expected nonce
@@ -164,6 +169,50 @@ contract CryptoRegistry is ICryptoRegistry, Ownable2Step, Pausable, ReentrancyGu
     function blake2b256Keyed(bytes calldata key, bytes calldata data) external view override returns (bytes32 hash) {
         if (!blake2fAvailable) revert Blake2fNotAvailable();
         hash = PvmBlake2.blake2b256Keyed(bytes(key), bytes(data));
+    }
+
+    // =========================================================================
+    // External — Substrate-Specific Blake2b Functions (TRACK 2)
+    // =========================================================================
+
+    /// @inheritdoc ICryptoRegistry
+    /// @dev TRACK 2: Substrate uses 128-bit Blake2b for storage map keys
+    function blake2b128(bytes calldata data) external view override returns (bytes16 hash) {
+        if (!blake2fAvailable) revert Blake2fNotAvailable();
+        hash = PvmBlake2.blake2b128(bytes(data));
+    }
+
+    /// @inheritdoc ICryptoRegistry
+    /// @dev TRACK 2: Computes Substrate AccountId32 = Blake2b-256(pubkey)
+    ///      This is what gets encoded as SS58 address in Polkadot wallets.
+    function computeSubstrateAccountId(bytes32 pubkey) external view override returns (bytes32 accountId) {
+        if (!blake2fAvailable) revert Blake2fNotAvailable();
+        if (pubkey == bytes32(0)) revert InvalidPublicKey();
+        accountId = PvmBlake2.computeSubstrateAccountId(pubkey);
+    }
+
+    /// @inheritdoc ICryptoRegistry
+    /// @dev TRACK 2: Computes Blake2_128Concat storage key format used by Substrate
+    function blake2b128Concat(bytes calldata key) external view override returns (bytes memory storageKey) {
+        if (!blake2fAvailable) revert Blake2fNotAvailable();
+        storageKey = PvmBlake2.blake2b128Concat(bytes(key));
+    }
+
+    /// @inheritdoc ICryptoRegistry
+    /// @dev TRACK 2: Hash XCM message exactly as Substrate does
+    function hashXcmMessage(
+        uint8 xcmVersion,
+        bytes calldata instructions
+    ) external view override returns (bytes32 hash) {
+        if (!blake2fAvailable) revert Blake2fNotAvailable();
+        hash = PvmBlake2.hashXcmMessage(xcmVersion, bytes(instructions));
+    }
+
+    /// @inheritdoc ICryptoRegistry
+    /// @dev TRACK 2: Merkle node hashing for state proof verification
+    function hashMerkleNode(bytes32 left, bytes32 right) external view override returns (bytes32 nodeHash) {
+        if (!blake2fAvailable) revert Blake2fNotAvailable();
+        nodeHash = PvmBlake2.hashMerkleNode(left, right);
     }
 
     // =========================================================================
@@ -351,17 +400,64 @@ contract CryptoRegistry is ICryptoRegistry, Ownable2Step, Pausable, ReentrancyGu
     }
 
     // =========================================================================
+    // External — Polkadot Feature Status (TRACK 2)
+    // =========================================================================
+
+    /// @notice Get comprehensive Polkadot precompile feature status
+    /// @dev Returns detailed status for all Track 2 relevant precompiles:
+    ///      - NotAvailable: Precompile not deployed
+    ///      - Available: Precompile deployed and working
+    ///      - CodeReady: Our code is ready, awaiting precompile deployment
+    ///      - Deprecated: Should not be used
+    /// @return sr25519Status Sr25519 verification status
+    /// @return ed25519Status Ed25519 verification status
+    /// @return xcmStatus XCM dispatch status
+    /// @return assetsStatus Native assets precompile status
+    function getPolkadotFeatureStatus() external view returns (
+        PrecompileFeatureStatus sr25519Status,
+        PrecompileFeatureStatus ed25519Status,
+        PrecompileFeatureStatus xcmStatus,
+        PrecompileFeatureStatus assetsStatus
+    ) {
+        return PolkadotFeatures.getFeatureStatus();
+    }
+
+    /// @notice Check if XCM dispatch precompile is available
+    /// @dev When true, XcmRouter can dispatch native XCM messages
+    function isXcmDispatchAvailable() external view returns (bool) {
+        return xcmDispatchAvailable;
+    }
+
+    /// @notice Get the precompile address constants (for frontend/debugging)
+    /// @return sr25519Addr Sr25519 precompile address (0x0403)
+    /// @return ed25519Addr Ed25519 precompile address (0x0402)
+    /// @return xcmAddr XCM dispatch precompile address (0x0816)
+    /// @return assetsAddr Native assets precompile address (0x0806)
+    function getPrecompileAddresses() external pure returns (
+        address sr25519Addr,
+        address ed25519Addr,
+        address xcmAddr,
+        address assetsAddr
+    ) {
+        sr25519Addr = PolkadotPrecompileAddresses.SR25519_VERIFY;
+        ed25519Addr = PolkadotPrecompileAddresses.ED25519_VERIFY;
+        xcmAddr = PolkadotPrecompileAddresses.XCM_DISPATCH;
+        assetsAddr = PolkadotPrecompileAddresses.ASSETS;
+    }
+
+    // =========================================================================
     // Internal Functions
     // =========================================================================
 
     /// @notice Auto-detect all PVM precompile availability
     /// @dev Called in constructor and by refreshPrecompileStatus().
     ///      Standard EVM precompiles (Blake2f, BN128) are tested via actual calls.
-    ///      Substrate precompiles (Sr25519, Ed25519) are tested via extcodesize.
+    ///      Substrate precompiles (Sr25519, Ed25519, XCM) are tested via extcodesize.
     function _detectPrecompiles() internal {
         // Substrate-specific precompiles: test via extcodesize
         sr25519Available = PvmVerifier.isSr25519Available();
         ed25519Available = PvmVerifier.isEd25519Available();
+        xcmDispatchAvailable = PvmVerifier.isXcmDispatchAvailable();
 
         // Standard EVM precompiles: test via actual call
         blake2fAvailable = PvmBlake2.isAvailable();
@@ -369,8 +465,9 @@ contract CryptoRegistry is ICryptoRegistry, Ownable2Step, Pausable, ReentrancyGu
 
         emit PrecompileDetected("sr25519", PvmVerifier.SR25519_VERIFY, sr25519Available);
         emit PrecompileDetected("ed25519", PvmVerifier.ED25519_VERIFY, ed25519Available);
+        emit PrecompileDetected("xcm_dispatch", PvmVerifier.XCM_DISPATCH, xcmDispatchAvailable);
         emit PrecompileDetected("blake2f", address(9), blake2fAvailable);
-        emit PrecompileDetected("bn128", PvmVerifier.BN128_MUL, bn128Available);
+        emit PrecompileDetected("bn128", address(7), bn128Available);
     }
 
     /// @notice Derive a stealth address from spending public key + shared secret hash

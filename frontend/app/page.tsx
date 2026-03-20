@@ -74,6 +74,34 @@ export default function OverviewPage() {
   return (
     <PageTransition>
       <div className="space-y-6">
+        {/* Track 2 Banner */}
+        <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-violet-500/10 p-6">
+          <div className="flex items-start gap-4">
+            <div className="rounded-lg bg-indigo-500/20 p-3">
+              <Zap size={24} className="text-indigo-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-zinc-100">Polkadot Solidity Hackathon — Track 2: PVM Smart Contracts</h2>
+              <p className="mt-2 text-sm text-zinc-400">
+                Omni-Shield demonstrates <strong>real PVM integration</strong> with Polkadot Hub:
+                Blake2b hashing, BN128 Pedersen commitments for privacy, and precompile-ready architecture
+                for Sr25519/Ed25519/XCM. Built for production deployment when precompiles go live.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/pvm">
+                  <Badge variant="info">🔧 PVM Registry</Badge>
+                </Link>
+                <Link href="/stealth">
+                  <Badge variant="info">🕵️ Stealth Payments</Badge>
+                </Link>
+                <a href="https://github.com/polkadot-evm/frontier" target="_blank" rel="noopener noreferrer">
+                  <Badge variant="neutral">📚 Frontier Docs</Badge>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-100">Executive Overview</h1>
           <p className="mt-1 text-sm text-zinc-500">Omni-Balance dashboard — Total assets across Escrow, Stealth, and Yield</p>

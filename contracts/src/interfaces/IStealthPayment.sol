@@ -121,6 +121,26 @@ interface IStealthPayment {
     event AuthorizedVaultSet(address indexed vault);
 
     // =========================================================================
+    // BN128 Privacy Events (TRACK 2 - Phase 3)
+    // =========================================================================
+
+    /// @notice Emitted when a Pedersen commitment is created for amount hiding
+    /// @dev The commitment C = v*G + r*H hides the amount v
+    event AmountCommitmentCreated(
+        address indexed stealthAddress,
+        uint256 commitmentX,
+        uint256 commitmentY,
+        bytes32 indexed commitmentHash
+    );
+
+    /// @notice Emitted when a commitment is verified during withdrawal
+    event CommitmentVerified(
+        address indexed stealthAddress,
+        bytes32 indexed commitmentHash,
+        bool valid
+    );
+
+    // =========================================================================
     // Functions
     // =========================================================================
 

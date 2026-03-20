@@ -89,16 +89,38 @@ export const XCM_ROUTER_ABI = [
 ];
 
 export const CRYPTO_REGISTRY_ABI = [
+  // Signature verification
   "function verifySr25519Signature(bytes32 pubkey, bytes signature, bytes message) view returns (bool)",
   "function verifyEd25519Signature(bytes32 pubkey, bytes32 sigR, bytes32 sigS, bytes message) view returns (bool)",
+
+  // Blake2b hashing (Track 2 Phase 1)
   "function blake2b256(bytes data) view returns (bytes32)",
+  "function blake2b128(bytes data) view returns (bytes16)",
+  "function computeSubstrateAccountId(bytes32 pubkey) view returns (bytes32)",
+  "function blake2b128Concat(bytes key) view returns (bytes)",
+  "function hashXcmMessage(uint8 xcmVersion, bytes instructions) view returns (bytes32)",
+  "function hashMerkleNode(bytes32 left, bytes32 right) view returns (bytes32)",
+
+  // Stealth address derivation
   "function computeStealthAddress(bytes32 spendingPubKey, bytes32 sharedSecretHash) view returns (address)",
   "function verifyStealthDerivation(bytes32 spendingPubKey, bytes32 sharedSecretHash, address expected) view returns (bool)",
+
+  // BN128 operations (Track 2 Phase 3)
+  "function bn128ScalarMul(uint256 px, uint256 py, uint256 scalar) view returns (uint256, uint256)",
+  "function bn128PointAdd(uint256 x1, uint256 y1, uint256 x2, uint256 y2) view returns (uint256, uint256)",
+  "function computePedersenCommitment(uint256 value, uint256 blindingFactor, uint256 hx, uint256 hy) view returns (uint256, uint256)",
+
+  // Precompile availability
   "function sr25519Available() view returns (bool)",
   "function ed25519Available() view returns (bool)",
   "function blake2fAvailable() view returns (bool)",
   "function bn128Available() view returns (bool)",
+  "function isXcmDispatchAvailable() view returns (bool)",
   "function getPrecompileStatus() view returns (tuple(bool sr25519, bool ed25519, bool blake2f, bool bn128))",
+  "function getPolkadotFeatureStatus() view returns (uint8, uint8, uint8, uint8)",
+  "function getPrecompileAddresses() view returns (address, address, address, address)",
+
+  // Events
   "event PrecompileDetected(string indexed name, address precompileAddr, bool available)",
 ];
 

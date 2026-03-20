@@ -17,9 +17,15 @@ import { POLKADOT_HUB_TESTNET } from "../lib/stealth";
 export default function PvmRegistryPage() {
   const { wallet } = useWalletContext();
   const [precompiles, setPrecompiles] = useState({
-    sr25519: false, ed25519: false, blake2f: false, bn128: false,
+    sr25519: false, ed25519: false, blake2f: false, bn128: false, xcm: false,
   });
   const [loading, setLoading] = useState(true);
+
+  // Pedersen commitment demo
+  const [commitValue, setCommitValue] = useState("");
+  const [commitBlinding, setCommitBlinding] = useState("");
+  const [commitResult, setCommitResult] = useState<{ cx: string; cy: string; hash: string } | null>(null);
+  const [committing, setCommitting] = useState(false);
 
   // Blake2 hash tool
   const [hashInput, setHashInput] = useState("");
@@ -46,7 +52,17 @@ export default function PvmRegistryPage() {
         const provider = new ethers.JsonRpcProvider(POLKADOT_HUB_TESTNET.rpcUrl);
         const c = getContracts(provider);
         const status = await c.cryptoRegistry.getPrecompileStatus();
-        setPrecompiles({ sr25519: status[0], ed25519: status[1], blake2f: status[2], bn128: status[3] });
+
+        // Check XCM dispatch availability
+        const xcmAvailable = await c.cryptoRegistry.isXcmDispatchAvailable();
+
+        setPrecompiles({
+          sr25519: status[0],
+          ed25519: status[1],
+          blake2f: status[2],
+          bn128: status[3],
+          xcm: xcmAvailable
+        });
       } catch (e) { console.error("PVM fetch:", e); }
       setLoading(false);
     })();
@@ -97,9 +113,35 @@ export default function PvmRegistryPage() {
     } catch (e) { console.error("Stealth verify:", e); }
   }, [stealthSpendKey, stealthSecretHash, stealthExpected]);
 
+  const handleCommitment = useCallback(async () => {
+    setCommitting(true);
+    setCommitResult(null);
+    try {
+      const provider = new ethers.JsonRpcProvider(POLKADOT_HUB_TESTNET.rpcUrl);
+      const reg = new ethers.Contract(CONTRACT_ADDRESSES.cryptoRegistry, CRYPTO_REGISTRY_ABI, provider);
+
+      // Get H generator point
+      const H_X = "16540640123574156134436876038791482806971768689494387082833631921987005038935";
+      const H_Y = "20819045374670962167435360035096875258406992893633759881276124905556507972311";
+
+      // Compute Pedersen commitment
+      const valueWei = ethers.parseEther(commitValue);
+      const [cx, cy] = await reg.computePedersenCommitment(valueWei, commitBlinding, H_X, H_Y);
+
+      // Compute hash
+      const hash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [cx, cy]));
+
+      setCommitResult({ cx: cx.toString(), cy: cy.toString(), hash });
+    } catch (e) {
+      console.error("Commitment failed:", e);
+    }
+    setCommitting(false);
+  }, [commitValue, commitBlinding]);
+
   const precompileList = [
-    { name: "SR25519", desc: "Schnorr signatures (Substrate native)", key: "sr25519" as const, addr: "0x5002" },
-    { name: "ED25519", desc: "Edwards curve signatures", key: "ed25519" as const, addr: "0x5003" },
+    { name: "SR25519", desc: "Schnorr signatures (Polkadot native)", key: "sr25519" as const, addr: "0x0403" },
+    { name: "ED25519", desc: "Edwards curve signatures", key: "ed25519" as const, addr: "0x0402" },
+    { name: "XCM Dispatch", desc: "Cross-chain messaging", key: "xcm" as const, addr: "0x0816" },
     { name: "BLAKE2F", desc: "BLAKE2b-256 hashing (EIP-152)", key: "blake2f" as const, addr: "0x0009" },
     { name: "BN128", desc: "Alt-BN128 pairing (EIP-196/197)", key: "bn128" as const, addr: "0x0006-0x0008" },
   ];
@@ -123,7 +165,7 @@ export default function PvmRegistryPage() {
         </div>
 
         {/* Precompile Status */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           {precompileList.map((p) => (
             <StatCard
               key={p.key}
@@ -215,6 +257,37 @@ export default function PvmRegistryPage() {
                 <MonoBox label="Computed Stealth Address" value={stealthResult.computed} />
               </div>
             )}
+          </div>
+        </GlassCard>
+
+        {/* Pedersen Commitment Demo (TRACK 2 - Phase 3) */}
+        <GlassCard title="BN128 Pedersen Commitment" icon={<ShieldCheck size={18} className="text-violet-400" />}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-violet-500/10 border border-violet-500/20 p-3">
+              <p className="text-xs text-violet-300">
+                <strong>TRACK 2 Feature:</strong> Pedersen commitments using BN128 precompiles (0x06, 0x07).
+                Commitment C = v*G + r*H hides the amount while remaining verifiable.
+              </p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-3">
+                <Input label="Value (ETH)" value={commitValue} onChange={setCommitValue} placeholder="1.5" type="number" step="0.01" />
+                <Input label="Blinding Factor (random uint256)" value={commitBlinding} onChange={setCommitBlinding} placeholder="123456789..." />
+                <Button onClick={handleCommitment} disabled={!commitValue || !commitBlinding || committing} variant="primary">
+                  <Hash size={14} /> {committing ? "Computing..." : "Compute Commitment"}
+                </Button>
+              </div>
+              {commitResult && (
+                <div className="space-y-3">
+                  <MonoBox label="Commitment X (cx)" value={commitResult.cx} />
+                  <MonoBox label="Commitment Y (cy)" value={commitResult.cy} />
+                  <MonoBox label="Commitment Hash" value={commitResult.hash} />
+                  <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+                    ✓ Commitment computed via BN128 precompiles. The value is now hidden!
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </GlassCard>
 

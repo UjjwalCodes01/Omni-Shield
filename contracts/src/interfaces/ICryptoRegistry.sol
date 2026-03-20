@@ -92,6 +92,25 @@ interface ICryptoRegistry {
     /// @notice Compute keyed Blake2b-256 hash (HMAC-like)
     function blake2b256Keyed(bytes calldata key, bytes calldata data) external view returns (bytes32 hash);
 
+    /// @notice Compute Blake2b-128 hash (16 bytes) - Substrate storage key format
+    /// @dev Used by Substrate for storage map keys with Blake2_128Concat hasher
+    function blake2b128(bytes calldata data) external view returns (bytes16 hash);
+
+    /// @notice Compute Substrate AccountId32 from a public key
+    /// @dev AccountId32 = Blake2b-256(pubkey) - the basis for SS58 addresses
+    function computeSubstrateAccountId(bytes32 pubkey) external view returns (bytes32 accountId);
+
+    /// @notice Compute Blake2_128Concat storage key (Substrate storage format)
+    /// @dev Returns blake2b128(key) ++ key
+    function blake2b128Concat(bytes calldata key) external view returns (bytes memory storageKey);
+
+    /// @notice Hash XCM message in Substrate format
+    /// @dev Matches xcm::VersionedXcm::hash() on the Rust side
+    function hashXcmMessage(uint8 xcmVersion, bytes calldata instructions) external view returns (bytes32 hash);
+
+    /// @notice Hash two child nodes for merkle proof verification
+    function hashMerkleNode(bytes32 left, bytes32 right) external view returns (bytes32 nodeHash);
+
     // =========================================================================
     // BN128 Curve Operations
     // =========================================================================
@@ -181,4 +200,17 @@ interface ICryptoRegistry {
     function blake2fAvailable() external view returns (bool);
     function bn128Available() external view returns (bool);
     function getPrecompileStatus() external view returns (PrecompileStatus memory);
+
+    /// @notice Check if XCM dispatch precompile is available (Track 2)
+    function isXcmDispatchAvailable() external view returns (bool);
+
+    /// @notice Get comprehensive Polkadot feature status (Track 2)
+    /// @return sr25519Status, ed25519Status, xcmStatus, assetsStatus
+    function getPolkadotFeatureStatus() external view returns (uint8, uint8, uint8, uint8);
+
+    /// @notice Get precompile addresses for debugging
+    function getPrecompileAddresses() external pure returns (address, address, address, address);
+
+    /// @notice Refresh precompile detection (owner only)
+    function refreshPrecompileStatus() external;
 }
