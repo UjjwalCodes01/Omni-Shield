@@ -158,7 +158,7 @@ function computeCommitment(uint256 value, uint256 blindingFactor)
 contracts/src/
 ├── CryptoRegistry.sol          # Central precompile registry (Track 2 core)
 ├── StealthPayment.sol          # EIP-5564 stealth addresses
-├── Escrow.sol                  # Multi-party escrow
+├── OmniShieldEscrow.sol        # Multi-party escrow
 ├── YieldRouter.sol             # Cross-chain yield
 ├── XcmRouter.sol               # XCM dispatcher
 ├── libraries/

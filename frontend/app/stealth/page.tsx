@@ -18,6 +18,28 @@ import {
 import { useTx } from "../lib/hooks";
 
 // ============================================================================
+// Components
+// ============================================================================
+
+function CopyBtn({
+  text,
+  label,
+  copied,
+  onCopy,
+}: {
+  text: string;
+  label: string;
+  copied: string;
+  onCopy: (text: string, label: string) => void;
+}) {
+  return (
+    <button onClick={() => onCopy(text, label)} className="ml-2 text-zinc-500 hover:text-zinc-300 transition">
+      {copied === label ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+    </button>
+  );
+}
+
+// ============================================================================
 // Page
 // ============================================================================
 
@@ -123,12 +145,6 @@ export default function StealthVaultPage() {
     );
   }, [wallet.signer, vwSecret, vwDepositIndex, vwAmount, vwBlinding, vwTo, vaultWithdrawTx]);
 
-  const CopyBtn = ({ text, label }: { text: string; label: string }) => (
-    <button onClick={() => copyToClipboard(text, label)} className="ml-2 text-zinc-500 hover:text-zinc-300 transition">
-      {copied === label ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
-    </button>
-  );
-
   return (
     <PageTransition>
       <div className="space-y-6">
@@ -170,11 +186,11 @@ export default function StealthVaultPage() {
                 <div className="mt-2 space-y-1">
                   <div className="flex items-center">
                     <span className="flex-1"><MonoBox label="Spending Public Key" value={keyPair.metaAddress.spendingPubKey} /></span>
-                    <CopyBtn text={keyPair.metaAddress.spendingPubKey} label="spend-pub" />
+                    <CopyBtn text={keyPair.metaAddress.spendingPubKey} label="spend-pub" copied={copied} onCopy={copyToClipboard} />
                   </div>
                   <div className="flex items-center">
                     <span className="flex-1"><MonoBox label="Viewing Public Key" value={keyPair.metaAddress.viewingPubKey} /></span>
-                    <CopyBtn text={keyPair.metaAddress.viewingPubKey} label="view-pub" />
+                    <CopyBtn text={keyPair.metaAddress.viewingPubKey} label="view-pub" copied={copied} onCopy={copyToClipboard} />
                   </div>
                 </div>
               </div>

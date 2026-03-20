@@ -267,8 +267,10 @@ contract Blake2bIntegrationTest is Test {
     }
 
     function test_SubstrateCompat_buildParachainMultilocation_revertZeroParaId() public {
+        // Use helper contract to test internal function revert
+        SubstrateCompatTestHelper helper = new SubstrateCompatTestHelper();
         vm.expectRevert(SubstrateCompat.InvalidParachainId.selector);
-        SubstrateCompat.buildParachainMultilocation(0);
+        helper.buildParachainMultilocation(0);
     }
 
     function test_SubstrateCompat_buildRelayChainMultilocation() public pure {
@@ -387,7 +389,7 @@ contract Blake2bIntegrationTest is Test {
     }
 
     function test_gas_blake2b256_32bytes() public view {
-        registry.blake2b256(bytes32(uint256(12345)));
+        registry.blake2b256(abi.encodePacked(bytes32(uint256(12345))));
     }
 
     function test_gas_blake2b256_128bytes() public view {
@@ -452,5 +454,12 @@ contract Blake2bIntegrationTest is Test {
     function test_getPrecompileStatus_blake2f() public view {
         ICryptoRegistry.PrecompileStatus memory status = registry.getPrecompileStatus();
         assertTrue(status.blake2f, "Blake2f should be available in status");
+    }
+}
+
+/// @notice Helper contract to expose internal library functions for revert testing
+contract SubstrateCompatTestHelper {
+    function buildParachainMultilocation(uint32 paraId) external pure returns (bytes memory) {
+        return SubstrateCompat.buildParachainMultilocation(paraId);
     }
 }

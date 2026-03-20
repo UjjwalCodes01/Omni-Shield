@@ -213,7 +213,7 @@ After deployment, update the contract address in frontend:
 
 ```typescript
 export const CONTRACT_ADDRESSES = {
-  cryptoRegistry: "0xNEW_ADDRESS_HERE",  // <-- Update this
+  cryptoRegistry: "0x237259A349F258eD5d561F90dcb701f4371169B3",
   stealthPayment: "0x98DB1edC0ED10888d559C641F709A364818B0167",
   stealthVault: "0x5290EC1961854B8a45346f74BeF775E51d4Ba076",
   escrow: "0xFa10b866e5B4a3BDD2d0a978FCB5cAbb334372BE",

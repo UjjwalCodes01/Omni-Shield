@@ -208,11 +208,17 @@ contract PrecompileArchitectureTest is Test {
 
     function test_getPolkadotFeatureStatus_returnsEnumValues() public view {
         (
-            PrecompileFeatureStatus sr25519Status,
-            PrecompileFeatureStatus ed25519Status,
-            PrecompileFeatureStatus xcmStatus,
-            PrecompileFeatureStatus assetsStatus
+            uint8 sr25519StatusRaw,
+            uint8 ed25519StatusRaw,
+            uint8 xcmStatusRaw,
+            uint8 assetsStatusRaw
         ) = registry.getPolkadotFeatureStatus();
+
+        // Cast to enum for comparison
+        PrecompileFeatureStatus sr25519Status = PrecompileFeatureStatus(sr25519StatusRaw);
+        PrecompileFeatureStatus ed25519Status = PrecompileFeatureStatus(ed25519StatusRaw);
+        PrecompileFeatureStatus xcmStatus = PrecompileFeatureStatus(xcmStatusRaw);
+        PrecompileFeatureStatus assetsStatus = PrecompileFeatureStatus(assetsStatusRaw);
 
         // Log the status for debugging
         console2.log("Polkadot Feature Status:");
@@ -251,11 +257,17 @@ contract PrecompileArchitectureTest is Test {
         // 3. Once deployed, the feature will automatically activate
 
         (
-            PrecompileFeatureStatus sr25519Status,
-            PrecompileFeatureStatus ed25519Status,
-            PrecompileFeatureStatus xcmStatus,
-            PrecompileFeatureStatus assetsStatus
+            uint8 sr25519StatusRaw,
+            uint8 ed25519StatusRaw,
+            uint8 xcmStatusRaw,
+            uint8 assetsStatusRaw
         ) = registry.getPolkadotFeatureStatus();
+
+        // Cast to enum for comparison
+        PrecompileFeatureStatus sr25519Status = PrecompileFeatureStatus(sr25519StatusRaw);
+        PrecompileFeatureStatus ed25519Status = PrecompileFeatureStatus(ed25519StatusRaw);
+        PrecompileFeatureStatus xcmStatus = PrecompileFeatureStatus(xcmStatusRaw);
+        PrecompileFeatureStatus assetsStatus = PrecompileFeatureStatus(assetsStatusRaw);
 
         // Document what CodeReady means
         if (sr25519Status == PrecompileFeatureStatus.CodeReady) {
@@ -490,11 +502,17 @@ contract PrecompileArchitectureTest is Test {
 
         // Get current status
         (
-            PrecompileFeatureStatus sr25519Status,
-            PrecompileFeatureStatus ed25519Status,
-            PrecompileFeatureStatus xcmStatus,
-            PrecompileFeatureStatus assetsStatus
+            uint8 sr25519StatusRaw,
+            uint8 ed25519StatusRaw,
+            uint8 xcmStatusRaw,
+            uint8 assetsStatusRaw
         ) = registry.getPolkadotFeatureStatus();
+
+        // Cast to enum for comparison
+        PrecompileFeatureStatus sr25519Status = PrecompileFeatureStatus(sr25519StatusRaw);
+        PrecompileFeatureStatus ed25519Status = PrecompileFeatureStatus(ed25519StatusRaw);
+        PrecompileFeatureStatus xcmStatus = PrecompileFeatureStatus(xcmStatusRaw);
+        PrecompileFeatureStatus assetsStatus = PrecompileFeatureStatus(assetsStatusRaw);
 
         // Document readiness
         console2.log("=== POLKADOT HUB PRECOMPILE READINESS ===");

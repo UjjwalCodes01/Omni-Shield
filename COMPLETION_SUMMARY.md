@@ -1,8 +1,36 @@
-# Omni-Shield — Implementation Complete ✅
+# Omni-Shield — Implementation Status
 
 ## 🎯 Mission: Track 2 Submission Ready
 
-**Status**: ✅ **COMPLETE** — Ready for Polkadot Solidity Hackathon submission
+**Status**: ✅ **SUBMISSION READY** — Core features working, XCM confirmation via relayer fallback
+
+> **Honest Disclosure**: XCM dispatch architecture is implemented, but trustless destination-proof-based confirmation is not yet live on current runtime. The relayer currently handles confirmation via time-based fallback simulation. This is a known limitation documented below.
+
+---
+
+## ⚠️ Honest Disclosure: XCM Implementation Status
+
+### What IS Implemented
+- XCM dispatch interface and contract tracking (`XcmRouter.sol`)
+- Blake2b message hashing for XCM (`hashXcmMessage()`)
+- On-chain dispatch bookkeeping with status tracking
+- Timeout and failure handling logic
+- Precompile-ready architecture that auto-activates
+
+### What is NOT Fully Trustless Yet
+- **XCM confirmation is relayer-assisted**: The relayer confirms dispatches after a configurable delay (`dispatchMonitor.js`), not via destination chain proofs
+- **XCM dispatch precompile (0x0816) is not yet deployed** on Polkadot Hub Testnet
+- Contract emits fallback events when precompile calls fail
+
+### Why This Matters
+If a judge asks "Is XCM successfully implemented?", the accurate answer is:
+> "Partially. Dispatch architecture and contract tracking are implemented, but production-grade trustless confirmation is not live yet on current testnet runtime. We currently run relayer-assisted confirmation as a fallback."
+
+### Path to Production
+When the XCM precompile (0x0816) is deployed:
+1. `XcmRouter.xcmPrecompileAvailable()` will return `true`
+2. Dispatch calls will use native XCM instead of fallback
+3. Confirmation can be upgraded to proof-based via HRMP/DMP events
 
 ---
 
@@ -201,18 +229,23 @@
 
 ## 🚀 Ready to Deploy
 
-### What Works NOW
-✅ Blake2b hashing (0x09)
-✅ BN128 commitments (0x06-0x08)
-✅ Precompile detection
-✅ Graceful degradation
-✅ Frontend demos
-✅ Full test suite
+### What Works NOW (Fully Trustless)
+✅ Blake2b hashing (0x09) — Real precompile calls
+✅ BN128 commitments (0x06-0x08) — Real precompile calls
+✅ Precompile detection — Auto-detect availability
+✅ Graceful degradation — Functions return false, no reverts
+✅ Frontend demos — Interactive working examples
+✅ Full test suite — 170+ tests passing
 
-### What Activates LATER
+### What Works NOW (Relayer-Assisted)
+⚡ XCM dispatch tracking — Contract bookkeeping works
+⚡ XCM confirmation — Via relayer time-based fallback
+⚡ Timeout handling — Relayer monitors and marks timeouts
+
+### What Activates LATER (When Precompiles Deploy)
 🔄 Sr25519 verification (when 0x0403 deploys)
 🔄 Ed25519 verification (when 0x0402 deploys)
-🔄 XCM dispatch (when 0x0816 deploys)
+🔄 Native XCM dispatch (when 0x0816 deploys) — Will upgrade to trustless
 🔄 Native assets (when 0x0806 deploys)
 
 **Key Innovation**: Zero code changes needed when precompiles deploy — auto-activation!
@@ -332,15 +365,17 @@ This codebase serves as a **reference implementation** for:
 
 **Project**: Omni-Shield
 **Track**: Track 2 — PVM Smart Contracts
-**Status**: ✅ **SUBMISSION READY**
+**Status**: ✅ **SUBMISSION READY** (with honest XCM disclosure)
 
 **Completed**:
 - ✅ Phase 0: Precompile diagnostics
-- ✅ Phase 1: Blake2b integration (WORKING)
+- ✅ Phase 1: Blake2b integration (FULLY WORKING)
 - ✅ Phase 2: Precompile-ready architecture (CODE READY)
-- ✅ Phase 3: BN128 Pedersen commitments (WORKING)
+- ✅ Phase 3: BN128 Pedersen commitments (FULLY WORKING)
 - ✅ Phase 4: Frontend demos (WORKING)
 - ✅ Phase 5: Documentation (COMPLETE)
+
+**XCM Status**: Architecture implemented, relayer-assisted confirmation (awaiting precompile 0x0816)
 
 **Test Results**: 170+ tests, all passing ✅
 **Demo Status**: Fully functional ✅

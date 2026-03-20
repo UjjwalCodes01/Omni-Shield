@@ -14,6 +14,28 @@ import { CONTRACT_ADDRESSES, PARACHAINS } from "../lib/contracts";
 import { POLKADOT_HUB_TESTNET } from "../lib/stealth";
 
 // ============================================================================
+// Components
+// ============================================================================
+
+function CopyBtn({
+  text,
+  label,
+  copied,
+  onCopy,
+}: {
+  text: string;
+  label: string;
+  copied: string;
+  onCopy: (text: string, label: string) => void;
+}) {
+  return (
+    <button onClick={() => onCopy(text, label)} className="text-zinc-500 hover:text-zinc-300 transition">
+      {copied === label ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
+    </button>
+  );
+}
+
+// ============================================================================
 // Page
 // ============================================================================
 
@@ -45,12 +67,6 @@ export default function SettingsPage() {
     }
   }, [h160Input]);
 
-  const CopyBtn = ({ text, label }: { text: string; label: string }) => (
-    <button onClick={() => copyToClipboard(text, label)} className="text-zinc-500 hover:text-zinc-300 transition">
-      {copied === label ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
-    </button>
-  );
-
   return (
     <PageTransition>
       <div className="space-y-6">
@@ -79,7 +95,7 @@ export default function SettingsPage() {
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-zinc-500">Address</span>
-                      <CopyBtn text={wallet.address} label="addr" />
+                      <CopyBtn text={wallet.address} label="addr" copied={copied} onCopy={copyToClipboard} />
                     </div>
                     <p className="mt-1 truncate font-mono text-sm text-zinc-300">{wallet.address}</p>
                   </div>
@@ -188,7 +204,7 @@ export default function SettingsPage() {
                   <span className="text-xs font-medium capitalize text-zinc-400">{name.replace(/([A-Z])/g, " $1").trim()}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] text-zinc-500">{addr.slice(0, 8)}...{addr.slice(-6)}</span>
-                    <CopyBtn text={addr} label={name} />
+                    <CopyBtn text={addr} label={name} copied={copied} onCopy={copyToClipboard} />
                     <a
                       href={`https://blockscout-testnet.polkadot.io/address/${addr}`}
                       target="_blank" rel="noopener noreferrer"

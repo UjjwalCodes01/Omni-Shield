@@ -85,10 +85,13 @@ async function checkAll() {
 
   console.log('\n--- Deployed Contract Check ---');
   const contracts = {
-    'CryptoRegistry': '0xfa10b866e5b4a3bdd2d0a978fcb5cabb334372be',
-    'StealthPayment': '0x98db1edc0ed10888d559c641f709a364818b0167',
-    'OmniShieldEscrow': '0xa4b00c51ed83c7a9e1f646e9c0329f4e61f651f1',
-    'YieldRouter': '0x2ba3337232f5b1ea4b14f3ca0121c3272c25bb4e',
+    'CryptoRegistry': '0x237259A349F258eD5d561F90dcb701f4371169B3',
+    'StealthPayment': '0x98DB1edC0ED10888d559C641F709A364818B0167',
+    'StealthVault': '0x5290EC1961854B8a45346f74BeF775E51d4Ba076',
+    'OmniShieldEscrow': '0xFa10b866e5B4a3BDD2d0a978FCB5cAbb334372BE',
+    'YieldRouter': '0xa4B00C51eD83c7a9E1F646E9C0329F4E61f651F1',
+    'XcmRouter': '0x2BA3337232F5b1eA4b14f3ca0121C3272c25Bb4E',
+    'OmniShieldHub': '0xCe7917f133B5f31807cC839DCC44f836D8ca7142',
   };
 
   for (const [name, addr] of Object.entries(contracts)) {
@@ -102,7 +105,7 @@ async function checkAll() {
   }
 
   // If CryptoRegistry is deployed, check its precompile status
-  const cryptoRegistryAddr = '0xfa10b866e5b4a3bdd2d0a978fcb5cabb334372be';
+  const cryptoRegistryAddr = '0x237259A349F258eD5d561F90dcb701f4371169B3';
   const code = await provider.getCode(cryptoRegistryAddr);
   if (code && code !== '0x' && code.length > 2) {
     console.log('\n--- CryptoRegistry Precompile Status ---');

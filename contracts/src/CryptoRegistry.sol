@@ -414,12 +414,18 @@ contract CryptoRegistry is ICryptoRegistry, Ownable2Step, Pausable, ReentrancyGu
     /// @return xcmStatus XCM dispatch status
     /// @return assetsStatus Native assets precompile status
     function getPolkadotFeatureStatus() external view returns (
-        PrecompileFeatureStatus sr25519Status,
-        PrecompileFeatureStatus ed25519Status,
-        PrecompileFeatureStatus xcmStatus,
-        PrecompileFeatureStatus assetsStatus
+        uint8 sr25519Status,
+        uint8 ed25519Status,
+        uint8 xcmStatus,
+        uint8 assetsStatus
     ) {
-        return PolkadotFeatures.getFeatureStatus();
+        (
+            PrecompileFeatureStatus sr25519,
+            PrecompileFeatureStatus ed25519,
+            PrecompileFeatureStatus xcm,
+            PrecompileFeatureStatus assets
+        ) = PolkadotFeatures.getFeatureStatus();
+        return (uint8(sr25519), uint8(ed25519), uint8(xcm), uint8(assets));
     }
 
     /// @notice Check if XCM dispatch precompile is available

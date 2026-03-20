@@ -157,7 +157,9 @@ export type EscrowStateName = (typeof ESCROW_STATES)[number];
 export const ROUTE_STATUSES = ["Pending", "Active", "Withdrawing", "Completed", "Failed"] as const;
 export type RouteStatusName = (typeof ROUTE_STATUSES)[number];
 
-export const XCM_STATUSES = ["Pending", "Dispatched", "Confirmed", "Failed", "TimedOut", "Returning", "Returned"] as const;
+// XCM Status Enum - MUST match XcmTypes.sol enum XcmStatus
+// Contract enum: Pending(0), Confirmed(1), Failed(2), TimedOut(3)
+export const XCM_STATUSES = ["Pending", "Confirmed", "Failed", "TimedOut"] as const;
 export type XcmStatusName = (typeof XCM_STATUSES)[number];
 
 // Parachain metadata

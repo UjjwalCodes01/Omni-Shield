@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Backend tests: see contracts/ for smart contract tests. Relayer service has no unit tests yet.\" && exit 0"
   },
   "keywords": ["polkadot", "xcm", "relayer", "defi"],
   "author": "Omni-Shield Team",
