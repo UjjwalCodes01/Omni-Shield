@@ -122,7 +122,19 @@ export default function SettingsPage() {
                 <div className="text-center py-8">
                   <Wallet size={32} className="mx-auto mb-3 text-zinc-600" />
                   <p className="text-sm text-zinc-400">No wallet connected</p>
-                  <Button onClick={connect} className="mt-4">Connect MetaMask</Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await connect();
+                      } catch {
+                        // Error is shown from wallet state below.
+                      }
+                    }}
+                    className="mt-4"
+                  >
+                    Connect Wallet
+                  </Button>
+                  {wallet.error && <p className="mt-3 text-xs text-red-400">{wallet.error}</p>}
                 </div>
               )}
             </div>

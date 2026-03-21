@@ -17,6 +17,7 @@ export interface WalletState {
   address: string;
   balance: string;
   chainId: number;
+  error: string;
   provider: ethers.BrowserProvider | null;
   signer: ethers.Signer | null;
 }
@@ -78,36 +79,81 @@ export function useWallet() {
     address: "",
     balance: "0",
     chainId: 0,
+    error: "",
     provider: null,
     signer: null,
   });
 
+  const getInjectedProvider = useCallback(() => {
+    if (typeof window === "undefined") return null;
+
+    const eth = window.ethereum;
+    if (!eth) return null;
+
+    const providers = Array.isArray(eth.providers)
+      ? eth.providers
+      : [eth];
+
+    // Prefer MetaMask when multiple providers are injected.
+    const preferred =
+      providers.find((p) => Boolean(p && p.isMetaMask)) || providers[0] || null;
+
+    return preferred;
+  }, []);
+
   const connect = useCallback(async () => {
-    if (typeof window === "undefined" || !window.ethereum) {
+    const injected = getInjectedProvider();
+    if (!injected) {
+      setWallet((prev) => ({
+        ...prev,
+        connected: false,
+        provider: null,
+        signer: null,
+        error: "No EVM wallet detected. Install MetaMask, Rabby, or a compatible browser wallet.",
+      }));
       throw new Error("MetaMask not detected");
     }
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    const balance = ethers.formatEther(await provider.getBalance(address));
-    const network = await provider.getNetwork();
+    try {
+      const provider = new ethers.BrowserProvider(injected);
+      await provider.send("eth_requestAccounts", []);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const balance = ethers.formatEther(await provider.getBalance(address));
+      const network = await provider.getNetwork();
 
-    setWallet({
-      connected: true,
-      address,
-      balance,
-      chainId: Number(network.chainId),
-      provider,
-      signer,
-    });
-  }, []);
+      setWallet({
+        connected: true,
+        address,
+        balance,
+        chainId: Number(network.chainId),
+        error: "",
+        provider,
+        signer,
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Wallet connection failed. Please unlock wallet and try again.";
+
+      setWallet((prev) => ({
+        ...prev,
+        connected: false,
+        provider: null,
+        signer: null,
+        error: message,
+      }));
+
+      throw err;
+    }
+  }, [getInjectedProvider]);
 
   const switchToPolkadotHub = useCallback(async () => {
-    if (!window.ethereum) return;
+    const injected = getInjectedProvider();
+    if (!injected) return;
     try {
-      await window.ethereum.request({
+      await injected.request({
         method: "wallet_switchEthereumChain",
         params: [
           { chainId: "0x" + POLKADOT_HUB_TESTNET.chainId.toString(16) },
@@ -116,7 +162,7 @@ export function useWallet() {
     } catch (switchError: unknown) {
       const err = switchError as { code?: number };
       if (err.code === 4902) {
-        await window.ethereum.request({
+        await injected.request({
           method: "wallet_addEthereumChain",
           params: [
             {
@@ -129,12 +175,13 @@ export function useWallet() {
                 symbol: "WND",
                 decimals: 18,
               },
+              blockExplorerUrls: ["https://blockscout-testnet.polkadot.io/"],
             },
           ],
         });
       }
     }
-  }, []);
+  }, [getInjectedProvider]);
 
   const disconnect = useCallback(() => {
     setWallet({
@@ -142,6 +189,7 @@ export function useWallet() {
       address: "",
       balance: "0",
       chainId: 0,
+      error: "",
       provider: null,
       signer: null,
     });
@@ -149,7 +197,8 @@ export function useWallet() {
 
   // Listen for account/chain changes
   useEffect(() => {
-    if (typeof window === "undefined" || !window.ethereum) return;
+    const injected = getInjectedProvider();
+    if (!injected || typeof injected.on !== "function") return;
 
     const handleAccountsChanged = () => {
       if (wallet.connected) connect();
@@ -158,16 +207,15 @@ export function useWallet() {
       if (wallet.connected) connect();
     };
 
-    window.ethereum.on("accountsChanged", handleAccountsChanged);
-    window.ethereum.on("chainChanged", handleChainChanged);
+    injected.on("accountsChanged", handleAccountsChanged);
+    injected.on("chainChanged", handleChainChanged);
     return () => {
-      window.ethereum?.removeListener(
-        "accountsChanged",
-        handleAccountsChanged
-      );
-      window.ethereum?.removeListener("chainChanged", handleChainChanged);
+      if (typeof injected.removeListener === "function") {
+        injected.removeListener("accountsChanged", handleAccountsChanged);
+        injected.removeListener("chainChanged", handleChainChanged);
+      }
     };
-  }, [wallet.connected, connect]);
+  }, [wallet.connected, connect, getInjectedProvider]);
 
   return { wallet, connect, disconnect, switchToPolkadotHub };
 }
@@ -242,6 +290,16 @@ export function useTx() {
 declare global {
   interface Window {
     ethereum?: ethers.Eip1193Provider & {
+      isMetaMask?: boolean;
+      providers?: Array<ethers.Eip1193Provider & {
+        isMetaMask?: boolean;
+        on?: (event: string, handler: (...args: unknown[]) => void) => void;
+        removeListener?: (
+          event: string,
+          handler: (...args: unknown[]) => void
+        ) => void;
+        request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      }>;
       on: (event: string, handler: (...args: unknown[]) => void) => void;
       removeListener: (
         event: string,

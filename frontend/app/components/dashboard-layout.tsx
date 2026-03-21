@@ -284,10 +284,24 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
             </AnimatePresence>
           </div>
         ) : (
-          <Button onClick={connect} size="sm">
-            <Wallet size={14} />
-            Connect Wallet
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              onClick={async () => {
+                try {
+                  await connect();
+                } catch {
+                  // Error message is stored in wallet state and shown below.
+                }
+              }}
+              size="sm"
+            >
+              <Wallet size={14} />
+              Connect Wallet
+            </Button>
+            {wallet.error && (
+              <span className="max-w-72 text-right text-[10px] text-red-400">{wallet.error}</span>
+            )}
+          </div>
         )}
       </div>
     </header>
