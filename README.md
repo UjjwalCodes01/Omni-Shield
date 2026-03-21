@@ -24,15 +24,6 @@ This section maps directly to the judging requirements.
 | Vision and commitment | ✅ Included | Future roadmap section with activation plan as precompiles roll out |
 | Track relevance | ✅ Included | Track 2-focused implementation: Blake2b + BN128 + precompile-ready architecture |
 
-### Polkadot Identity (Required for Final Evaluation)
-
-Add your team identity details here before final submission:
-
-- Team wallet address (Polkadot Hub testnet): `0xc108F92E717891a8C9f2Ab71c67cbF96a3207d7b`
-- On-chain identity proof link: `<ADD_POLKA_ASSEMBLY_OR_OPENGOV_LINK>`
-- Identity setup guide followed: https://openguild.wtf/blog/polkadot/polkadot-opengov-introduction
-
----
 
 ## 🎯 Track 2: PVM Smart Contracts
 
